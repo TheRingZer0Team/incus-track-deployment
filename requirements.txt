@@ -1,0 +1,4 @@
+git+https://github.com/TheRingZer0Team/python-lxd@main#egg=lxd
+pyyaml
+ansible
+ansible-runner
