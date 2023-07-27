@@ -1,0 +1,25 @@
+config:
+  name: test-challenge-deployment
+  remote: nsec-cloud
+  project: ringzer0
+  launch:
+    image: 
+      remote: images
+      name: ubuntu/20.04
+  network:
+    name: default
+    listen_address: 45.45.148.200
+    static_ip: true
+    forwards:
+      - source: 20130
+        destination: 80
+    acls:
+      - name: allow-ingress-external
+      - name: allow-egress-ubuntu-archives-tcp-80
+      - name: testing-testing-one-two
+        description: Testing testing one two
+        egress:
+        - action: allow
+          protocol: tcp
+          destination_port: 80
+          state: enabled

@@ -1,0 +1,9 @@
+all:
+  hosts:
+    test-challenge-deployment:
+  vars:
+    ansible_connection: lxd
+    ansible_user: root
+    ansible_lxd_remote: nsec-cloud
+    ansible_lxd_project: ringzer0
+    ansible_lxd_host: test-challenge-deployment

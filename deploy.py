@@ -93,6 +93,8 @@ def destroy(project: lxd.models.projects.Project, args, *, instance: "lxd.models
     if(args.verbose):
         print(f"[DEBUG] Attempt to destroy instance: {instance.name}")
 
+    aclsToRemove = associatedACLs(project=project, args=args, instance=instance)
+
     removeForwardPort(project=project, args=args, instance=instance)
 
     try:
@@ -121,6 +123,13 @@ def destroy(project: lxd.models.projects.Project, args, *, instance: "lxd.models
     if(args.verbose):
         print(f"[DEBUG] Instance was deleted: {instance.name}")
 
+    for acl in aclsToRemove:
+        if(len(acl.usedBy) == 0):
+            acl.delete()
+            if(args.verbose):
+                print(f"[DEBUG] ACL was deleted: {acl.name}")
+
+
 def deploy(project: lxd.models.projects.Project, args, *, name: str, nameSource: str, remoteSource: str=None, projectSource: str=None, isVM: bool=False, isClone: bool=False) -> lxd.models.instances.Instance:
     if(project.instances.exists(name=name)):
         if(args.force):
@@ -144,6 +153,22 @@ def deploy(project: lxd.models.projects.Project, args, *, name: str, nameSource:
             print(f"[DEBUG] {'Virtual machine' if isVM else 'Instance'} was launched: {instance.name}")
 
     return instance
+
+def associatedACLs(project: lxd.models.projects.Project, args, *, instance: "lxd.models.instances.Instance | str"):
+    toRemove = []
+    if(isinstance(instance, str)):
+        instance = project.instances.get(name=instance)
+
+    acls = project.acls.list()
+    for acl in acls:
+        if(len(acl.usedBy) == 1):
+            if(instance.name in acl.usedBy[0]):
+                toRemove.append(acl)
+
+                if(args.verbose):
+                    print(f"[DEBUG] Found ACL to delete: {acl.name}")
+
+    return toRemove
 
 def removeForwardPort(project: lxd.models.projects.Project, args, *, instance: "lxd.models.instances.Instance | str"):
     if(isinstance(instance, str)):
@@ -437,6 +462,7 @@ if __name__ == '__main__':
     parser.add_argument("-v", "--verbose", help="Verbose", action="store_true")
     parser.add_argument("-f", "--force", help="Force deletion if instance exists", action="store_true")
     parser.add_argument("-a", "--apply", help="Apply configuration file without redeploying (can only be done if the instance exists).", action="store_true")
+    parser.add_argument("-t", "--test", help="Once completed, destroy everything.", action="store_true")
 
     purge = parser.add_argument_group('purge')
     purge.add_argument("--purge", help="Completely remove an instance and forward ports.", action="store_true")
@@ -610,3 +636,9 @@ if __name__ == '__main__':
             project.instances.get(name=conf.name).restart()
 
     print(f"Elasped time: {(datetime.datetime.now() - now).total_seconds()}")
+
+    if(args.test):
+        for conf in config:
+            project = lxd.remotes.get(name=conf.remote).projects.get(name=conf.project)
+            instance = project.instances.get(name=conf.name)
+            destroy(project=project, args=args, instance=instance)

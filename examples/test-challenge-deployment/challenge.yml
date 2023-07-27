@@ -1,0 +1,41 @@
+- hosts: all
+  tasks:
+    - name: Initial System Upgrade
+      apt:
+        update_cache: yes
+        install_recommends: no
+        upgrade: full
+
+    - name: Install Apache and PHP
+      apt:
+        name:
+          - apache2
+          - php
+          - libapache2-mod-php
+
+    - name: Copy the challenge file (index.php)
+      copy:
+        src: challenge/index.php
+        dest: /var/www/html/
+        owner: root
+        group: root
+        mode: '0444'
+
+    - name: Copy the flag file (flag.txt)
+      copy:
+        src: challenge/flag.txt
+        dest: /
+        owner: root
+        group: root
+        mode: '0444'
+
+    - name: Remove /var/www/html/index.html
+      file: 
+        path: "/var/www/html/index.html"
+        state: absent
+
+    - name: Restart Apache2
+      service: 
+        name: apache2
+        state: restarted
+        enabled: yes
