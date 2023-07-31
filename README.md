@@ -1,4 +1,4 @@
-# RingZer0-Challenges
+# LXD challenge deployment script
 
 ## File Structure
 
@@ -173,7 +173,7 @@ ansible-galaxy collection install community.general -f
 ## Usage
 
 ```
-usage: deploy.py [-h] [-v] [-f] [-a] [--purge] [--remote REMOTE] [--project PROJECT] challengePath
+usage: deploy.py [-h] [-v] [-f] [-a] [-t] [--purge] [--remote REMOTE] [--project PROJECT] challengePath
 
 positional arguments:
   challengePath
@@ -183,6 +183,7 @@ optional arguments:
   -v, --verbose      Verbose
   -f, --force        Force deletion if instance exists
   -a, --apply        Apply configuration file without redeploying (can only be done if the instance exists).
+  -t, --test         Once completed, destroy everything.
 
 purge:
   --purge            Completely remove an instance and forward ports.
