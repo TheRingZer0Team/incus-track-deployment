@@ -83,11 +83,17 @@ config:
     image:
       remote: images
       name: ubuntu/20.04
+    config: (optional)
+      limits.cpu: 1
+      limits.memory: 1GiB
     is_virtual_machine: false (default: false)
   copy: (if copying an instance. Can't be used with launch)
     remote: nsec-cloud (default: config.remote)
     project: ringzer0 (default: config.project)
     name: template-ubuntu-1404
+    config: (optional)
+      limits.cpu: 1
+      limits.memory: 1GiB
   network:
     name: default (required if forwards is present)
     listen_address: 45.45.148.200 (required if forwards is present)
@@ -135,9 +141,11 @@ config:
 `config.remote` and `config.project` are related to LXD for where you want the instance to be.
 `config.launch` configurations to launch an instance.
 `config.launch.image` contains the remote of where the image is and the name of the image.
+`config.launch.config` contains the configuration key/value pairs to launch an instance.
 `config.launch.is_virtual_machine` if the container is a virtual machine or an instance.
 `config.copy` configurations to copy an instance from another instance.
 `config.copy.remote` and `config.project` are related to LXD for where the source instance is.
+`config.copy.config` contains the configuration key/value pairs to copy an instance.
 `config.network` network configurations.
 `config.network.name` network's name.
 `config.network.listen_address` network forward's listen address.
