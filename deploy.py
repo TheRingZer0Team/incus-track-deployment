@@ -38,11 +38,17 @@ def printHelp():
             image:
               remote: images
               name: ubuntu/20.04
+            config: (optional)
+              limits.cpu: 1
+              limits.memory: 1GiB
             is_virtual_machine: false (default: false)
           copy: (if copying an instance. Can't be used with launch)
             remote: nsec-cloud (default: config.remote)
             project: ringzer0 (default: config.project)
             name: template-ubuntu-1404
+            config: (optional)
+              limits.cpu: 1
+              limits.memory: 1GiB
           network:
             name: default (required if forwards is present)
             listen_address: 45.45.148.200 (required if forwards is present)
@@ -130,7 +136,7 @@ def destroy(project: lxd.models.projects.Project, args, *, instance: "lxd.models
                 print(f"[DEBUG] ACL was deleted: {acl.name}")
 
 
-def deploy(project: lxd.models.projects.Project, args, *, name: str, nameSource: str, remoteSource: str=None, projectSource: str=None, isVM: bool=False, isClone: bool=False) -> lxd.models.instances.Instance:
+def deploy(project: lxd.models.projects.Project, args, *, name: str, nameSource: str, remoteSource: str=None, projectSource: str=None, config: dict=None, isVM: bool=False, isClone: bool=False) -> lxd.models.instances.Instance:
     if(project.instances.exists(name=name)):
         if(args.force):
             instance = project.instances.get(name=name)
@@ -142,13 +148,13 @@ def deploy(project: lxd.models.projects.Project, args, *, name: str, nameSource:
     if(isClone):
         if(args.verbose):
             print(f"[DEBUG] Copying {'virtual machine' if isVM else 'instance'} from {f'{remoteSource}:'if remoteSource else ''}{nameSource} to {instance.name}")
-        instance = project.instances.copy(source=nameSource, name=name, remoteSource=remoteSource, projectSource=projectSource, instanceOnly=True, vm=isVM)
+        instance = project.instances.copy(source=nameSource, name=name, remoteSource=remoteSource, projectSource=projectSource, config=config, instanceOnly=True, vm=isVM)
         if(args.verbose):
             print(f"[DEBUG] {'Virtual machine' if isVM else 'Instance'} was copied from {f'{remoteSource}:'if remoteSource else ''}{nameSource}: {instance.name}")
     else:
         if(args.verbose):
             print(f"[DEBUG] Launching {'virtual machine' if isVM else 'instance'} from image {f'{remoteSource}:'if remoteSource else ''}{nameSource} to create {name}")
-        instance = project.instances.launch(image=nameSource, name=name, remoteSource=remoteSource, vm=isVM)
+        instance = project.instances.launch(image=nameSource, name=name, remoteSource=remoteSource, config=config, vm=isVM)
         if(args.verbose):
             print(f"[DEBUG] {'Virtual machine' if isVM else 'Instance'} was launched: {instance.name}")
 
@@ -372,8 +378,9 @@ class Config(Model):
         self.network = self.Network(**network) if network else None
 
     class Launch(Model):
-        def __init__(self, image, is_virtual_machine: bool=False):
+        def __init__(self, image, config: dict=None, is_virtual_machine: bool=False):
             self.image = self.Image(**image)
+            self.config = config
             self.isVM = True if is_virtual_machine else False
 
         class Image(Model):
@@ -384,11 +391,12 @@ class Config(Model):
                 self.remote = remote
 
     class Copy(Model):
-        def __init__(self, name: str, remote: str, project: str=None):
+        def __init__(self, name: str, remote: str, project: str=None, config: dict=None):
             lxd.models._models.Model().validateObjectFormat(name, remote, project)
             self.name = name
             self.remote = remote
             self.project = project
+            self.config = config
 
     class Network(Model):
         def __init__(self, name: str, *, listen_address: str=None, ipv4: str=None, ipv6: str=None, static_ip: bool=False, forwards: list=[], acls: list=[]):
@@ -580,12 +588,14 @@ if __name__ == '__main__':
         if(conf.launch):
             kwargs["nameSource"] = conf.launch.image.name
             kwargs["remoteSource"] = conf.launch.image.remote
+            kwargs["config"] = conf.launch.config
             kwargs["isVM"] = conf.launch.isVM
 
         if(conf.copy):
             kwargs["nameSource"] = conf.copy.name
             kwargs["remoteSource"] = conf.copy.remote
             kwargs["projectSource"] = conf.copy.project
+            kwargs["config"] = conf.copy.config
             kwargs["isClone"] = True
 
         if(not args.apply):
