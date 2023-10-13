@@ -50,7 +50,12 @@ def printHelp():
               limits.cpu: 1
               limits.memory: 1GiB
           network:
-            name: default (required if forwards is present)
+            name: testnetwork (required if forwards is present)
+            description: testnetwork (optional)
+            _type: ovn (required if creating a new network)
+            action: update (optional, values are 'create' (throws if already exists), 'skip' (skip the creation if already exists), 'update' (create or update if already exists))
+            config:
+              network: default (required if '_type' is ovn)
             listen_address: 45.45.148.200 (required if forwards is present)
             static_ip: true (default: false)
             ipv4: 10.66.241.3 (optional, does not require static_ip to be set)
@@ -136,7 +141,7 @@ def destroy(project: lxd.models.projects.Project, args, *, instance: "lxd.models
                 print(f"[DEBUG] ACL was deleted: {acl.name}")
 
 
-def deploy(project: lxd.models.projects.Project, args, *, name: str, nameSource: str, remoteSource: str=None, projectSource: str=None, config: dict=None, isVM: bool=False, isClone: bool=False) -> lxd.models.instances.Instance:
+def deploy(project: lxd.models.projects.Project, args, *, name: str, nameSource: str, remoteSource: str=None, projectSource: str=None, config: dict=None, network: lxd.models.networks.Network=None, isVM: bool=False, isClone: bool=False) -> lxd.models.instances.Instance:
     if(project.instances.exists(name=name)):
         if(args.force):
             instance = project.instances.get(name=name)
@@ -148,13 +153,19 @@ def deploy(project: lxd.models.projects.Project, args, *, name: str, nameSource:
     if(isClone):
         if(args.verbose):
             print(f"[DEBUG] Copying {'virtual machine' if isVM else 'instance'} from {f'{remoteSource}:'if remoteSource else ''}{nameSource} to {instance.name}")
-        instance = project.instances.copy(source=nameSource, name=name, remoteSource=remoteSource, projectSource=projectSource, config=config, instanceOnly=True, vm=isVM)
+        
+        # TODO: make it more dynamic as the NIC could be named something else than eth0.
+        device={"eth0":{"name":"eth0","type":"nic","network":network.name}}
+        instance = project.instances.copy(source=nameSource, name=name, remoteSource=remoteSource, projectSource=projectSource, config=config, device=device, instanceOnly=True, vm=isVM)
+        
         if(args.verbose):
             print(f"[DEBUG] {'Virtual machine' if isVM else 'Instance'} was copied from {f'{remoteSource}:'if remoteSource else ''}{nameSource}: {instance.name}")
     else:
         if(args.verbose):
             print(f"[DEBUG] Launching {'virtual machine' if isVM else 'instance'} from image {f'{remoteSource}:'if remoteSource else ''}{nameSource} to create {name}")
-        instance = project.instances.launch(image=nameSource, name=name, remoteSource=remoteSource, config=config, vm=isVM)
+        
+        instance = project.instances.launch(image=nameSource, name=name, remoteSource=remoteSource, config=config, network=network.name, vm=isVM)
+        
         if(args.verbose):
             print(f"[DEBUG] {'Virtual machine' if isVM else 'Instance'} was launched: {instance.name}")
 
@@ -399,11 +410,13 @@ class Config(Model):
             self.config = config
 
     class Network(Model):
-        def __init__(self, name: str, config: dict=None, *, create: bool=False, listen_address: str=None, ipv4: str=None, ipv6: str=None, static_ip: bool=False, forwards: list=[], acls: list=[]):
+        def __init__(self, name: str, _type: str=None, description: str=None, config: dict=None, *, action: str='skip', listen_address: str=None, ipv4: str=None, ipv6: str=None, static_ip: bool=False, forwards: list=[], acls: list=[]):
             lxd.models._models.Model().validateObjectFormat(name)
             self.name = name
+            self.description = description
+            self.action = action
+            self.type = _type
             self.config = config
-            self.create = create
             
             if(listen_address): 
                 try:
@@ -431,7 +444,7 @@ class Config(Model):
             self.ipv4 = ipv4
             self.ipv6 = ipv6
 
-            self.static_ip = True if static_ip else False
+            self.staticIp = True if static_ip else False
 
             self.forwards = []
             for forward in forwards:
@@ -600,6 +613,40 @@ if __name__ == '__main__':
             kwargs["config"] = conf.copy.config
             kwargs["isClone"] = True
 
+        if(conf.network):
+            network = None
+
+            if(conf.network.action in ['create', 'update', 'skip']):
+                if(project.networks.exists(name=conf.network.name)):
+                    if(conf.network.action != 'skip' and conf.network.action == 'create'):
+                        raise Exception(f"Network '{conf.network.name}' already exists.")
+                    elif(conf.network.action == 'update'):
+                        if(args.verbose):
+                            print(f"[DEBUG] Network '{conf.network.name}' already existed.")
+                            print(f"[DEBUG] Updating network: '{conf.network.name}'")
+
+                        network = project.networks.get(name=conf.network.name)
+                        
+                        if(network.description != conf.network.description):
+                            network.description = conf.network.description
+
+                        network.config = {**network.config, **conf.network.config}
+                else:
+                    if(not conf.network.type):
+                        raise Exception("Type must be specified when creating a network.")
+
+                    if(args.verbose):
+                        print(f"[DEBUG] Creating network: {conf.network.name}")
+
+                    network = project.networks.create(name=conf.network.name, _type=conf.network.type, description=conf.network.description, config=conf.network.config)
+            else:
+                if(not project.networks.exists(name=conf.network.name)):
+                    raise Exception(f"Network was not found: {conf.network.name}")
+
+                network = project.networks.get(name=conf.network.name)
+
+            kwargs["network"] = network
+
         if(not args.apply):
             instance = deploy(project=project, args=args, **kwargs)
         else:
@@ -632,7 +679,7 @@ if __name__ == '__main__':
             project = lxd.remotes.get(name=conf.remote).projects.get(name=conf.project)
             instance = project.instances.get(name=conf.name)
 
-            if(conf.network.static_ip or conf.network.ipv4 or conf.network.ipv6):
+            if(conf.network.staticIp or conf.network.ipv4 or conf.network.ipv6):
                 setStaticIP(project=project, args=args, instance=instance, ipv4=conf.network.ipv4, ipv6=conf.network.ipv6)
         
             instance.restart()

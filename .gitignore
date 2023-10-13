@@ -37,6 +37,7 @@ lib64
 lib/
 pyvenv.cfg
 share/
+dont-upload-this-one/
 
 # PyInstaller
 #  Usually these files are written by a python script from a template

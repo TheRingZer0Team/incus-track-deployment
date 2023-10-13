@@ -7,7 +7,12 @@ config:
       remote: images
       name: ubuntu/20.04
   network:
-    name: default
+    name: testnetwork
+    description: testnetwork
+    _type: ovn
+    action: update
+    config:
+      network: default
     listen_address: 45.45.148.200
     static_ip: true
     forwards:

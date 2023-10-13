@@ -118,7 +118,12 @@ config:
       limits.cpu: 1
       limits.memory: 1GiB
   network:
-    name: default (required if forwards is present)
+    name: testnetwork (required if forwards is present)
+    description: testnetwork (optional)
+    _type: ovn (required if creating a new network)
+    action: update (optional, values are 'create' (throws if already exists), 'skip' (skip the creation if already exists), 'update' (create or update if already exists))
+    config:
+      network: default (required if '_type' is ovn)
     listen_address: 45.45.148.200 (required if forwards is present)
     static_ip: true (default: false)
     ipv4: 10.66.241.3 (optional, does not require static_ip to be set)
@@ -175,6 +180,10 @@ config:
 * `config.copy.config` contains the configuration key/value pairs to copy an instance.
 * `config.network` network configurations.
 * `config.network.name` network's name.
+* `config.network._type` network type (bridge or ovn).
+* `config.network.action` action to take depending on the state of the network. `create` to create the network but throws if already exists. `update` to create or update the network. `skip` to create the network or skip if already exists.
+* `config.network.description` network description.
+* `config.network.config` contains the configuration key/value pairs to a network.
 * `config.network.listen_address` network forward's listen address.
 * `config.network.static_ip` if the instance must have static ip. By default, this will take the DHCP ips to make them static.
 * `config.network.ipv4` and `config.network.ipv6` set the static ip to this ip. Does not require `config.network.static_ip` to be set.
