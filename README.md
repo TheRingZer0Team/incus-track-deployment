@@ -95,7 +95,7 @@ The `challenge.yml` is where the magic happens. Everything that you need to be i
 
 ### config.yml
 
-The `config.yml` file is where the specific LXD configuration comes into play. Here are two examples of it. The first one is for only one instance. The second one is for multiple instances.
+The `config.yml` file is where the specific LXD configuration comes into play. Here are two examples of it. The first one is for one instance:
 
 ```yaml
 config:
@@ -141,7 +141,11 @@ config:
           destination_port: 80 (optional)
           protocol: tcp (required only if source_port or destination_port are present)
         ingress: [] (optional)
+```
 
+The second one is for multiple instances:
+
+```yaml
 config:
   - name: test-challenge-deployment-1
     remote: nsec-cloud
@@ -152,7 +156,7 @@ config:
       name: template-ubuntu-1404
   - name: test-challenge-deployment-2
     remote: nsec-cloud
-    project: ringzer1
+    project: ringzer0
     launch: (if launching an instance. Can't be used with copy)
       image:
         remote: images
