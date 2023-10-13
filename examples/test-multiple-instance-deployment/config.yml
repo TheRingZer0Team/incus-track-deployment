@@ -1,0 +1,16 @@
+config:
+  - name: test-server-1
+    remote: spawn2pwn
+    project: templates
+    launch:
+      image: 
+        remote: images
+        name: ubuntu/22.04
+        
+  - name: test-server-2
+    remote: spawn2pwn
+    project: templates
+    launch:
+      image: 
+        remote: images
+        name: ubuntu/22.04

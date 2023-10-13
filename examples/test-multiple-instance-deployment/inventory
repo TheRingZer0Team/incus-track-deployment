@@ -1,0 +1,23 @@
+all:
+  vars:
+    ansible_connection: lxd
+    ansible_user: root
+    ansible_lxd_remote: spawn2pwn
+    ansible_lxd_project: templates
+    global_file: globalfile.txt
+
+server1:
+  hosts:
+    test-server-1:
+  vars:
+    ansible_lxd_host: test-server-1
+    server_file: server1file.txt
+    challenge_folder: server1
+
+server2:
+  hosts:
+    test-server-2:
+  vars:
+    ansible_lxd_host: test-server-2
+    server_file: server2file.txt
+    challenge_folder: server2

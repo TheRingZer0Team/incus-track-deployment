@@ -1,0 +1,19 @@
+- hosts: all
+  tasks:
+    - name: Initial System Upgrade
+      apt:
+        update_cache: yes
+        install_recommends: no
+        upgrade: full
+
+    - name: Copy global file on all machines
+      copy:
+        src: challenge/globalfile.txt
+        dest: "/tmp/{{ global_file }}"
+        mode: '0744'
+    
+    # Install whatever on every machines
+
+# import playbooks for individual machines
+- import_playbook: server1.yml
+- import_playbook: server2.yml

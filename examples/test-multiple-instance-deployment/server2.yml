@@ -1,0 +1,9 @@
+- hosts: test-server-2
+  tasks:
+    - name: Copy server file
+      copy:
+        src: "challenge/{{ challenge_folder }}/serverfile.txt"
+        dest: "/tmp/{{ server_file }}"
+        mode: '0755'
+    
+    # Do whatever specific to test-server-2
