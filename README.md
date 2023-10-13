@@ -2,7 +2,7 @@
 
 ## File Structure
 
-In the following file structure, the only file/folder that should have their name changed is `container_name`, which should be the name of the container (e.g. `test-challenge-deployment-on-ringzer0`):
+In the following file structure, the only file/folder that should have their name changed is `container_name`, which should be the name of the container (e.g. `test-challenge-deployment-on-default`):
 
 ```
 deploy.py
@@ -23,13 +23,13 @@ The `inventory` with only one instance may look like the following:
 ```yaml
 all:
   hosts:
-    test-challenge-deployment-on-ringzer0:
+    test-challenge-deployment-on-default:
   vars:
     ansible_connection: lxd
     ansible_user: root
-    ansible_lxd_remote: nsec-cloud
-    ansible_lxd_project: ringzer0
-    ansible_lxd_host: test-challenge-deployment-on-ringzer0
+    ansible_lxd_remote: local
+    ansible_lxd_project: default
+    ansible_lxd_host: test-challenge-deployment-on-default
 ```
 
 Or for multiple instances:
@@ -39,8 +39,8 @@ all:
   vars:
     ansible_connection: lxd
     ansible_user: root
-    ansible_lxd_remote: nsec-cloud
-    ansible_lxd_project: ringzer0
+    ansible_lxd_remote: local
+    ansible_lxd_project: default
 
 server1:
   hosts:
@@ -99,9 +99,9 @@ The `config.yml` file is where the specific LXD configuration comes into play. H
 
 ```yaml
 config:
-  name: test-challenge-deployment-on-ringzer0
-  remote: nsec-cloud
-  project: ringzer0
+  name: test-challenge-deployment-on
+  remote: local
+  project: default
   launch: (if launching an instance. Can't be used with copy)
     image:
       remote: images
@@ -111,8 +111,8 @@ config:
       limits.memory: 1GiB
     is_virtual_machine: false (default: false)
   copy: (if copying an instance. Can't be used with launch)
-    remote: nsec-cloud (default: config.remote)
-    project: ringzer0 (default: config.project)
+    remote: local (default: config.remote)
+    project: default (default: config.project)
     name: template-ubuntu-1404
     config: (optional)
       limits.cpu: 1
@@ -148,15 +148,15 @@ The second one is for multiple instances:
 ```yaml
 config:
   - name: test-challenge-deployment-1
-    remote: nsec-cloud
-    project: ringzer0
+    remote: local
+    project: default
     copy: (if copying an instance. Can't be used with launch)
-      remote: nsec-cloud (default: config.remote)
-      project: ringzer0 (default: config.project)
+      remote: local (default: config.remote)
+      project: default (default: config.project)
       name: template-ubuntu-1404
   - name: test-challenge-deployment-2
-    remote: nsec-cloud
-    project: ringzer0
+    remote: local
+    project: default
     launch: (if launching an instance. Can't be used with copy)
       image:
         remote: images
@@ -226,7 +226,7 @@ purge:
   --project PROJECT  Specify project.
 ```
 
-Different format for challengePath: `folder_name` represent the container name (e.g. `test-challenge-deployment-on-ringzer0`)
+Different format for challengePath: `folder_name` represent the container name (e.g. `test-challenge-deployment-on-default`)
 
 ```
 python3 deploy.py folder_name

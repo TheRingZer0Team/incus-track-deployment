@@ -31,9 +31,9 @@ def printHelp():
         textwrap.dedent(
         """\
         config:
-          name: test-challenge-deployment-on-ringzer0
-          remote: nsec-cloud
-          project: ringzer0
+          name: test-challenge-deployment-on-default
+          remote: local
+          project: default
           launch: (if launching an instance. Can't be used with copy)
             image:
               remote: images
@@ -43,8 +43,8 @@ def printHelp():
               limits.memory: 1GiB
             is_virtual_machine: false (default: false)
           copy: (if copying an instance. Can't be used with launch)
-            remote: nsec-cloud (default: config.remote)
-            project: ringzer0 (default: config.project)
+            remote: local (default: config.remote)
+            project: default (default: config.project)
             name: template-ubuntu-1404
             config: (optional)
               limits.cpu: 1
@@ -78,14 +78,14 @@ def printHelp():
         It can also be a list of instances with each their own configuration.
         config:
           - name: test-challenge-deployment-1
-            remote: nsec-cloud
-            project: ringzer0
+            remote: local
+            project: default
             copy: (if copying an instance. Can't be used with launch)
-              remote: nsec-cloud (default: config.remote)
-              project: ringzer0 (default: config.project)
+              remote: local (default: config.remote)
+              project: default (default: config.project)
               name: template-ubuntu-1404
           - name: test-challenge-deployment-2
-            remote: nsec-cloud
+            remote: local
             project: ringzer1
             launch: (if launching an instance. Can't be used with copy)
               image:
@@ -399,9 +399,11 @@ class Config(Model):
             self.config = config
 
     class Network(Model):
-        def __init__(self, name: str, *, listen_address: str=None, ipv4: str=None, ipv6: str=None, static_ip: bool=False, forwards: list=[], acls: list=[]):
+        def __init__(self, name: str, config: dict=None, *, create: bool=False, listen_address: str=None, ipv4: str=None, ipv6: str=None, static_ip: bool=False, forwards: list=[], acls: list=[]):
             lxd.models._models.Model().validateObjectFormat(name)
             self.name = name
+            self.config = config
+            self.create = create
             
             if(listen_address): 
                 try:

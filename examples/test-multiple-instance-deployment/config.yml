@@ -1,15 +1,15 @@
 config:
   - name: test-server-1
-    remote: nsec-cloud
-    project: ringzer0
+    remote: local
+    project: default
     launch:
       image: 
         remote: images
         name: ubuntu/22.04
         
   - name: test-server-2
-    remote: nsec-cloud
-    project: ringzer0
+    remote: local
+    project: default
     launch:
       image: 
         remote: images

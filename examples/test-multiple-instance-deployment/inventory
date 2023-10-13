@@ -2,8 +2,8 @@ all:
   vars:
     ansible_connection: lxd
     ansible_user: root
-    ansible_lxd_remote: nsec-cloud
-    ansible_lxd_project: ringzer0
+    ansible_lxd_remote: local
+    ansible_lxd_project: default
     global_file: globalfile.txt
 
 server1:
