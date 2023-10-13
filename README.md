@@ -18,7 +18,7 @@ containers/
 
 ### Inventory
 
-The `inventory` should be exactly as below, except for the first line that should also be the name of the container.
+The `inventory` with only one instance may look like the following:
 
 ```yaml
 all:
@@ -30,6 +30,29 @@ all:
     ansible_lxd_remote: nsec-cloud
     ansible_lxd_project: ringzer0
     ansible_lxd_host: test-challenge-deployment-on-ringzer0
+```
+
+Or for multiple instances:
+
+```yaml
+all:
+  vars:
+    ansible_connection: lxd
+    ansible_user: root
+    ansible_lxd_remote: nsec-cloud
+    ansible_lxd_project: ringzer0
+
+server1:
+  hosts:
+    test-server-1:
+  vars:
+    ansible_lxd_host: test-server-1
+
+server2:
+  hosts:
+    test-server-2:
+  vars:
+    ansible_lxd_host: test-server-2
 ```
 
 ### challenge.yml
@@ -137,36 +160,36 @@ config:
       is_virtual_machine: false (default: false)
 ```
 
-`config.name` is the name of the container/folder/challenge.
-`config.remote` and `config.project` are related to LXD for where you want the instance to be.
-`config.launch` configurations to launch an instance.
-`config.launch.image` contains the remote of where the image is and the name of the image.
-`config.launch.config` contains the configuration key/value pairs to launch an instance.
-`config.launch.is_virtual_machine` if the container is a virtual machine or an instance.
-`config.copy` configurations to copy an instance from another instance.
-`config.copy.remote` and `config.project` are related to LXD for where the source instance is.
-`config.copy.config` contains the configuration key/value pairs to copy an instance.
-`config.network` network configurations.
-`config.network.name` network's name.
-`config.network.listen_address` network forward's listen address.
-`config.network.static_ip` if the instance must have static ip. By default, this will take the DHCP ips to make them static.
-`config.network.ipv4` and `config.network.ipv6` set the static ip to this ip. Does not require `config.network.static_ip` to be set.
-`config.network.forwards` network forwards configurations.
-`config.network.forwards.source` source ip of the forward.
-`config.network.forwards.destination` destination ip of the forward.
-`config.network.forwards.protocol` protocol of the forward.
-`config.network.acls` network acls configurations. If the acl already exists, that one will be used without any modification even if the rest of the parameters are set.
-`config.network.acls.name` name of the acl.
-`config.network.acls.description` description of the acl.
-`config.network.acls.egress` and `config.network.acls.ingress` contains the rules of the acl.
-`config.network.acls.[e|in]gress.action` must be allow, reject or drop.
-`config.network.acls.[e|in]gress.state` must be enabled, disabled or logged.
-`config.network.acls.[e|in]gress.description` description of the acl rule.
-`config.network.acls.[e|in]gress.source` source ip of the acl rule.
-`config.network.acls.[e|in]gress.destination` destination ip of the acl rule.
-`config.network.acls.[e|in]gress.source_port` source_port ip of the acl rule.
-`config.network.acls.[e|in]gress.destination_port` destination_port ip of the acl rule.
-`config.network.acls.[e|in]gress.protocol` protocol ip of the acl rule.
+* `config.name` is the name of the container/folder/challenge.
+* `config.remote` and `config.project` are related to LXD for where you want the instance to be.
+* `config.launch` configurations to launch an instance.
+* `config.launch.image` contains the remote of where the image is and the name of the image.
+* `config.launch.config` contains the configuration key/value pairs to launch an instance.
+* `config.launch.is_virtual_machine` if the container is a virtual machine or an instance.
+* `config.copy` configurations to copy an instance from another instance.
+* `config.copy.remote` and `config.project` are related to LXD for where the source instance is.
+* `config.copy.config` contains the configuration key/value pairs to copy an instance.
+* `config.network` network configurations.
+* `config.network.name` network's name.
+* `config.network.listen_address` network forward's listen address.
+* `config.network.static_ip` if the instance must have static ip. By default, this will take the DHCP ips to make them static.
+* `config.network.ipv4` and `config.network.ipv6` set the static ip to this ip. Does not require `config.network.static_ip` to be set.
+* `config.network.forwards` network forwards configurations.
+* `config.network.forwards.source` source ip of the forward.
+* `config.network.forwards.destination` destination ip of the forward.
+* `config.network.forwards.protocol` protocol of the forward.
+* `config.network.acls` network acls configurations. If the acl already exists, that one will be used without any modification even if the rest of the parameters are set.
+* `config.network.acls.name` name of the acl.
+* `config.network.acls.description` description of the acl.
+* `config.network.acls.egress` and `config.network.acls.ingress` contains the rules of the acl.
+* `config.network.acls.[e|in]gress.action` must be allow, reject or drop.
+* `config.network.acls.[e|in]gress.state` must be enabled, disabled or logged.
+* `config.network.acls.[e|in]gress.description` description of the acl rule.
+* `config.network.acls.[e|in]gress.source` source ip of the acl rule.
+* `config.network.acls.[e|in]gress.destination` destination ip of the acl rule.
+* `config.network.acls.[e|in]gress.source_port` source_port ip of the acl rule.
+* `config.network.acls.[e|in]gress.destination_port` destination_port ip of the acl rule.
+* `config.network.acls.[e|in]gress.protocol` protocol ip of the acl rule.
 
 ## Requirements
 

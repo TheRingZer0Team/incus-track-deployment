@@ -2,8 +2,8 @@ all:
   vars:
     ansible_connection: lxd
     ansible_user: root
-    ansible_lxd_remote: spawn2pwn
-    ansible_lxd_project: templates
+    ansible_lxd_remote: nsec-cloud
+    ansible_lxd_project: ringzer0
     global_file: globalfile.txt
 
 server1:
