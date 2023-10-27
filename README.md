@@ -1,4 +1,4 @@
-# LXD challenge deployment script
+# Incus challenge deployment script
 
 ## File Structure
 
@@ -95,7 +95,7 @@ The `challenge.yml` is where the magic happens. Everything that you need to be i
 
 ### config.yml
 
-The `config.yml` file is where the specific LXD configuration comes into play. Here are two examples of it. The first one is for one instance:
+The `config.yml` file is where the specific Incus configuration comes into play. Here are two examples of it. The first one is for one instance:
 
 ```yaml
 config:
@@ -170,13 +170,13 @@ config:
 ```
 
 * `config.name` is the name of the container/folder/challenge.
-* `config.remote` and `config.project` are related to LXD for where you want the instance to be.
+* `config.remote` and `config.project` are related to Incus for where you want the instance to be.
 * `config.launch` configurations to launch an instance.
 * `config.launch.image` contains the remote of where the image is and the name of the image.
 * `config.launch.config` contains the configuration key/value pairs to launch an instance.
 * `config.launch.is_virtual_machine` if the container is a virtual machine or an instance.
 * `config.copy` configurations to copy an instance from another instance.
-* `config.copy.remote` and `config.project` are related to LXD for where the source instance is.
+* `config.copy.remote` and `config.project` are related to Incus for where the source instance is.
 * `config.copy.config` contains the configuration key/value pairs to copy an instance.
 * `config.network` network configurations.
 * `config.network.name` network's name.

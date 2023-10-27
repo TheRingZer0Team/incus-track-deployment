@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 import os
 import sys
-import lxd
 import yaml
 import time
 import shutil
+import pyincus
 import datetime
 import argparse
 import textwrap
@@ -20,8 +20,8 @@ CHALLENGE_FILE_NAME = "challenge.yml"
 CONFIGURATION_FILE_NAME = "config.yml"
 INVENTORY_FILE_NAME = "inventory"
 
-lxd.lxd.cwd = "/"
-lxd.lxd.check()
+pyincus.incus.cwd = "/"
+pyincus.incus.check()
 
 def printHelp():
     print("Review config file format.")
@@ -100,7 +100,7 @@ def printHelp():
         """)
     )
 
-def destroy(project: lxd.models.projects.Project, args, *, instance: "lxd.models.instances.Instance | str"):
+def destroy(project: pyincus.models.projects.Project, args, *, instance: "pyincus.models.instances.Instance | str"):
     if(args.verbose):
         print(f"[DEBUG] Attempt to destroy instance: {instance.name}")
 
@@ -112,8 +112,8 @@ def destroy(project: lxd.models.projects.Project, args, *, instance: "lxd.models
         instance.pause()
         if(args.verbose):
             print(f"[DEBUG] Instance was paused: {instance.name}")
-    except lxd.exceptions.InstanceException as error:
-        if(isinstance(error, lxd.exceptions.InstanceIsNotRunningException)):
+    except pyincus.exceptions.InstanceException as error:
+        if(isinstance(error, pyincus.exceptions.InstanceIsNotRunningException)):
             pass
         else:
             print(error)
@@ -123,8 +123,8 @@ def destroy(project: lxd.models.projects.Project, args, *, instance: "lxd.models
         instance.stop()
         if(args.verbose):
             print(f"[DEBUG] Instance was stopped: {instance.name}")
-    except lxd.exceptions.InstanceException as error:
-        if(isinstance(error, (lxd.exceptions.InstanceIsAlreadyStoppedException, lxd.exceptions.InstanceIsNotRunningException))):
+    except pyincus.exceptions.InstanceException as error:
+        if(isinstance(error, (pyincus.exceptions.InstanceIsAlreadyStoppedException, pyincus.exceptions.InstanceIsNotRunningException))):
             pass
         else:
             print(error)
@@ -141,7 +141,7 @@ def destroy(project: lxd.models.projects.Project, args, *, instance: "lxd.models
                 print(f"[DEBUG] ACL was deleted: {acl.name}")
 
 
-def deploy(project: lxd.models.projects.Project, args, *, name: str, nameSource: str, remoteSource: str=None, projectSource: str=None, config: dict=None, network: lxd.models.networks.Network=None, isVM: bool=False, isClone: bool=False) -> lxd.models.instances.Instance:
+def deploy(project: pyincus.models.projects.Project, args, *, name: str, nameSource: str, remoteSource: str=None, projectSource: str=None, config: dict=None, network: pyincus.models.networks.Network=None, isVM: bool=False, isClone: bool=False) -> pyincus.models.instances.Instance:
     if(project.instances.exists(name=name)):
         if(args.force):
             instance = project.instances.get(name=name)
@@ -155,7 +155,7 @@ def deploy(project: lxd.models.projects.Project, args, *, name: str, nameSource:
             print(f"[DEBUG] Copying {'virtual machine' if isVM else 'instance'} from {f'{remoteSource}:'if remoteSource else ''}{nameSource} to {instance.name}")
         
         # TODO: make it more dynamic as the NIC could be named something else than eth0.
-        device={"eth0":{"name":"eth0","type":"nic","network":network.name}}
+        device={"eth0":{"name":"eth0","type":"nic","network":network.name}} if network else None
         instance = project.instances.copy(source=nameSource, name=name, remoteSource=remoteSource, projectSource=projectSource, config=config, device=device, instanceOnly=True, vm=isVM)
         
         if(args.verbose):
@@ -164,14 +164,14 @@ def deploy(project: lxd.models.projects.Project, args, *, name: str, nameSource:
         if(args.verbose):
             print(f"[DEBUG] Launching {'virtual machine' if isVM else 'instance'} from image {f'{remoteSource}:'if remoteSource else ''}{nameSource} to create {name}")
         
-        instance = project.instances.launch(image=nameSource, name=name, remoteSource=remoteSource, config=config, network=network.name, vm=isVM)
+        instance = project.instances.launch(image=nameSource, name=name, remoteSource=remoteSource, config=config, network=network.name if network else None, vm=isVM)
         
         if(args.verbose):
             print(f"[DEBUG] {'Virtual machine' if isVM else 'Instance'} was launched: {instance.name}")
 
     return instance
 
-def associatedACLs(project: lxd.models.projects.Project, args, *, instance: "lxd.models.instances.Instance | str"):
+def associatedACLs(project: pyincus.models.projects.Project, args, *, instance: "pyincus.models.instances.Instance | str"):
     toRemove = []
     if(isinstance(instance, str)):
         instance = project.instances.get(name=instance)
@@ -187,7 +187,7 @@ def associatedACLs(project: lxd.models.projects.Project, args, *, instance: "lxd
 
     return toRemove
 
-def removeForwardPort(project: lxd.models.projects.Project, args, *, instance: "lxd.models.instances.Instance | str"):
+def removeForwardPort(project: pyincus.models.projects.Project, args, *, instance: "pyincus.models.instances.Instance | str"):
     if(isinstance(instance, str)):
         instance = project.instances.get(name=instance)
 
@@ -222,7 +222,7 @@ def removeForwardPort(project: lxd.models.projects.Project, args, *, instance: "
                     if(args.verbose):
                         print(f"[DEBUG] Forward port was removed: {port['listen_port']}")
 
-def setNetworkACLs(project: lxd.models.projects.Project, args, *, acls: list, instance: "lxd.models.instances.Instance | str"):
+def setNetworkACLs(project: pyincus.models.projects.Project, args, *, acls: list, instance: "pyincus.models.instances.Instance | str"):
     if(isinstance(instance, str)):
         instance = project.instances.get(name=instance)
 
@@ -252,7 +252,7 @@ def setNetworkACLs(project: lxd.models.projects.Project, args, *, acls: list, in
         for acl in acls:
             print(f"[DEBUG] ACL ({acl.name}) attached to Instance ({instance.name}).")
 
-def setForwardsPorts(project: lxd.models.projects.Project, args, *, instance: "lxd.models.instances.Instance | str", network: str, listenAddress: str, forwards: list):
+def setForwardsPorts(project: pyincus.models.projects.Project, args, *, instance: "pyincus.models.instances.Instance | str", network: str, listenAddress: str, forwards: list):
     if(isinstance(instance, str)):
         instance = project.instances.get(name=instance)
 
@@ -280,7 +280,7 @@ def setForwardsPorts(project: lxd.models.projects.Project, args, *, instance: "l
         if(args.verbose):
             print(f"[DEBUG] Forward port was added: {f.source}")
 
-def setStaticIP(project: lxd.models.projects.Project, args, *, instance: "lxd.models.instances.Instance | str", ipv4: str=None, ipv6: str=None):
+def setStaticIP(project: pyincus.models.projects.Project, args, *, instance: "pyincus.models.instances.Instance | str", ipv4: str=None, ipv6: str=None):
     if(isinstance(instance, str)):
         instance = project.instances.get(name=instance)
 
@@ -313,7 +313,7 @@ def setStaticIP(project: lxd.models.projects.Project, args, *, instance: "lxd.mo
     if(args.verbose):
         print(f"[DEBUG] Instance has now static ips: {instance.name} with {devices}.")
 
-def waitForIPAddresses(instance: "lxd.models.instances.Instance | str"):
+def waitForIPAddresses(instance: "pyincus.models.instances.Instance | str"):
     if(isinstance(instance, str)):
         instance = project.instances.get(name=instance)
 
@@ -348,7 +348,7 @@ def waitForIPAddresses(instance: "lxd.models.instances.Instance | str"):
         # Avoid spamming too much
         time.sleep(0.2)
 
-def waitForBoot(instance: "lxd.models.instances.Instance | str"):
+def waitForBoot(instance: "pyincus.models.instances.Instance | str"):
     if(isinstance(instance, str)):
         instance = project.instances.get(name=instance)
 
@@ -359,8 +359,8 @@ def waitForBoot(instance: "lxd.models.instances.Instance | str"):
         try:
             instance.exec("whoami")
             break
-        except lxd.exceptions.InstanceException as error:
-            if(not isinstance(error, (lxd.exceptions.InstanceIsPausedException,lxd.exceptions.InstanceIsNotRunningException, lxd.exceptions.InstanceExecFailedException, lxd.exceptions.InstanceNotFoundException))):
+        except pyincus.exceptions.InstanceException as error:
+            if(not isinstance(error, (pyincus.exceptions.InstanceIsPausedException,pyincus.exceptions.InstanceIsNotRunningException, pyincus.exceptions.InstanceExecFailedException, pyincus.exceptions.InstanceNotFoundException))):
                 print(f"{type(error).__name__}: {error}")
                 sys.exit(1)
 
@@ -376,7 +376,7 @@ class Model(object):
 
 class Config(Model):
     def __init__(self, name: str, remote: str, project: str, *, launch: dict=None, copy: dict=None, network: dict=None):
-        lxd.models._models.Model().validateObjectFormat(name, remote, project)
+        pyincus.models._models.Model().validateObjectFormat(name, remote, project)
         self.name = name
         self.remote = remote
         self.project = project
@@ -396,14 +396,14 @@ class Config(Model):
 
         class Image(Model):
             def __init__(self, name: str, remote: str):
-                lxd.models._models.Model().validateObjectFormat(remote)
-                lxd.models.instances.Instance().validateImageName(name)
+                pyincus.models._models.Model().validateObjectFormat(remote)
+                pyincus.models.instances.Instance().validateImageName(name)
                 self.name = name
                 self.remote = remote
 
     class Copy(Model):
         def __init__(self, name: str, remote: str, project: str=None, config: dict=None):
-            lxd.models._models.Model().validateObjectFormat(name, remote, project)
+            pyincus.models._models.Model().validateObjectFormat(name, remote, project)
             self.name = name
             self.remote = remote
             self.project = project
@@ -411,7 +411,7 @@ class Config(Model):
 
     class Network(Model):
         def __init__(self, name: str, _type: str=None, description: str=None, config: dict=None, *, action: str='skip', listen_address: str=None, ipv4: str=None, ipv6: str=None, static_ip: bool=False, forwards: list=[], acls: list=[]):
-            lxd.models._models.Model().validateObjectFormat(name)
+            pyincus.models._models.Model().validateObjectFormat(name)
             self.name = name
             self.description = description
             self.action = action
@@ -456,11 +456,11 @@ class Config(Model):
 
         class Forward(Model):
             def __init__(self, source: int, destination: int, protocol: str="tcp"):
-                lxd.models.forwards.NetworkForward().validatePortList(ports=source)
-                lxd.models.forwards.NetworkForward().validatePortList(ports=destination)
+                pyincus.models.forwards.NetworkForward().validatePortList(ports=source)
+                pyincus.models.forwards.NetworkForward().validatePortList(ports=destination)
 
-                if(not protocol.lower() in lxd.models.forwards.NetworkForward().possibleProtocols):
-                    raise Exception(f"Forward protocol must be within these values: {lxd.models.forwards.NetworkForward().possibleProtocols}")
+                if(not protocol.lower() in pyincus.models.forwards.NetworkForward().possibleProtocols):
+                    raise Exception(f"Forward protocol must be within these values: {pyincus.models.forwards.NetworkForward().possibleProtocols}")
 
                 self.source = source
                 self.destination = destination
@@ -468,13 +468,13 @@ class Config(Model):
 
         class ACL(Model):
             def __init__(self, name: str, *, description: str=None, egress: list=[], ingress: list=[]):
-                lxd.models._models.Model().validateObjectFormat(name)
+                pyincus.models._models.Model().validateObjectFormat(name)
 
                 self.name = name
                 self.description = description
                 
-                lxd.models.acls.NetworkACL().validateGress(egress)
-                lxd.models.acls.NetworkACL().validateGress(ingress)
+                pyincus.models.acls.NetworkACL().validateGress(egress)
+                pyincus.models.acls.NetworkACL().validateGress(ingress)
 
                 self.egress = egress
                 self.ingress = ingress
@@ -501,11 +501,11 @@ if __name__ == '__main__':
             print("Missing --remote and/or --project arguments.")
             sys.exit(1)
 
-        if(not lxd.remotes.exists(name=args.remote)):
+        if(not pyincus.remotes.exists(name=args.remote)):
             print(f"Remote was not found: {args.remote}")
             sys.exit(1)
 
-        remote = lxd.remotes.get(name=args.remote)
+        remote = pyincus.remotes.get(name=args.remote)
 
         if(not remote.projects.exists(name=args.project)):
             print(f"Project was not found: {args.project}")
@@ -579,11 +579,11 @@ if __name__ == '__main__':
         print(f"[DEBUG] config: {config}")
     
     for conf in config:
-        if(not lxd.remotes.exists(name=conf.remote)):
+        if(not pyincus.remotes.exists(name=conf.remote)):
             print(f"Remote was not found: {conf.remote}")
             sys.exit(1)
 
-        remote = lxd.remotes.get(name=conf.remote)
+        remote = pyincus.remotes.get(name=conf.remote)
 
         if(not remote.projects.exists(name=conf.project)):
             print(f"Project was not found: {conf.project}")
@@ -653,20 +653,24 @@ if __name__ == '__main__':
             instance = project.instances.get(name=conf.name)
 
     for conf in config:
-        project = lxd.remotes.get(name=conf.remote).projects.get(name=conf.project)
+        project = pyincus.remotes.get(name=conf.remote).projects.get(name=conf.project)
         instance = project.instances.get(name=conf.name)
         waitForIPAddresses(instance=instance)
 
         if(conf.launch and conf.launch.isVM):
             waitForBoot(instance=instance)
+    
+    # BEGIN Temporary measure until ansible creates an incus plugin.
+    incusPluginPath = os.path.join(os.getcwd(), "plugins", "connection")
+    # END
 
-    r = ansible_runner.run(private_data_dir=challengePath, playbook=CHALLENGE_FILE_NAME)
+    r = ansible_runner.run(debug=True,private_data_dir=challengePath, playbook=CHALLENGE_FILE_NAME, envvars={"ANSIBLE_CONNECTION_PLUGINS":incusPluginPath})
 
     if(r.rc != 0):
         shutil.rmtree(os.path.join(challengePath, "artifacts"))
 
         for conf in config:
-            project = lxd.remotes.get(name=conf.remote).projects.get(name=conf.project)
+            project = pyincus.remotes.get(name=conf.remote).projects.get(name=conf.project)
             instance = project.instances.get(name=conf.name)
             destroy(project=project, args=args, instance=instance)
 
@@ -676,7 +680,7 @@ if __name__ == '__main__':
 
     for conf in config:
         if(conf.network):
-            project = lxd.remotes.get(name=conf.remote).projects.get(name=conf.project)
+            project = pyincus.remotes.get(name=conf.remote).projects.get(name=conf.project)
             instance = project.instances.get(name=conf.name)
 
             if(conf.network.staticIp or conf.network.ipv4 or conf.network.ipv6):
@@ -698,6 +702,6 @@ if __name__ == '__main__':
 
     if(args.test):
         for conf in config:
-            project = lxd.remotes.get(name=conf.remote).projects.get(name=conf.project)
+            project = pyincus.remotes.get(name=conf.remote).projects.get(name=conf.project)
             instance = project.instances.get(name=conf.name)
             destroy(project=project, args=args, instance=instance)

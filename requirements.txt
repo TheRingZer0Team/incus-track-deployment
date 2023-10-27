@@ -1,4 +1,4 @@
-git+https://github.com/TheRingZer0Team/python-lxd@main#egg=lxd
+git+https://github.com/TheRingZer0Team/pyincus@main#egg=pyincus
 pyyaml
 ansible
 ansible-runner
