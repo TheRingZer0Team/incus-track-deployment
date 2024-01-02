@@ -385,7 +385,7 @@ class Config(Model):
             raise Exception("There can only be one of them: launch and copy")
 
         self.launch = self.Launch(**launch) if launch else None
-        self.copy = self.Copy(**launch) if copy else None
+        self.copy = self.Copy(**copy) if copy else None
         self.network = self.Network(**network) if network else None
 
     class Launch(Model):
