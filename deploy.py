@@ -152,14 +152,17 @@ def deploy(project: pyincus.models.projects.Project, args, *, name: str, nameSou
 
     if(isClone):
         if(args.verbose):
-            print(f"[DEBUG] Copying {'virtual machine' if isVM else 'instance'} from {f'{remoteSource}:'if remoteSource else ''}{nameSource} to {instance.name}")
+            print(f"[DEBUG] Copying {'virtual machine' if isVM else 'instance'} from {f'{remoteSource}:'if remoteSource else ''}{nameSource} to {name}")
         
         # TODO: make it more dynamic as the NIC could be named something else than eth0.
         device={"eth0":{"name":"eth0","type":"nic","network":network.name}} if network else None
+        
         instance = project.instances.copy(source=nameSource, name=name, remoteSource=remoteSource, projectSource=projectSource, config=config, device=device, instanceOnly=True, vm=isVM)
         
+        instance.start()
+
         if(args.verbose):
-            print(f"[DEBUG] {'Virtual machine' if isVM else 'Instance'} was copied from {f'{remoteSource}:'if remoteSource else ''}{nameSource}: {instance.name}")
+            print(f"[DEBUG] {'Virtual machine' if isVM else 'Instance'} was copied from {f'{remoteSource}:'if remoteSource else ''}{nameSource}: {name}")
     else:
         if(args.verbose):
             print(f"[DEBUG] Launching {'virtual machine' if isVM else 'instance'} from image {f'{remoteSource}:'if remoteSource else ''}{nameSource} to create {name}")
@@ -322,8 +325,8 @@ def waitForIPAddresses(instance: "pyincus.models.instances.Instance | str"):
 
     network = project.networks.get(name=instance.expandedDevices["eth0"]["network"])
 
-    ipv4Enabled = "ipv4.address" in network.config
-    ipv6Enabled = "ipv6.address" in network.config
+    ipv4Enabled = "ipv4.address" in network.config and not pyincus.utils.isNone(network.config["ipv4.address"])
+    ipv6Enabled = "ipv6.address" in network.config and not pyincus.utils.isNone(network.config["ipv6.address"])
 
     subnet4 = ip_network(network.config["ipv4.address"], strict=False) if ipv4Enabled else None
     subnet6 = ip_network(network.config["ipv6.address"], strict=False) if ipv6Enabled else None
@@ -484,6 +487,7 @@ if __name__ == '__main__':
     parser.add_argument("challengePath", type=str)
     parser.add_argument("-v", "--verbose", help="Verbose", action="store_true")
     parser.add_argument("-f", "--force", help="Force deletion if instance exists", action="store_true")
+    parser.add_argument("-k", "--keep-instances-on-failure", dest='keepInstancesOnFailure', help="Keep instance(s) if the script fails.", action="store_true")
     parser.add_argument("-a", "--apply", help="Apply configuration file without redeploying (can only be done if the instance exists).", action="store_true")
     parser.add_argument("-t", "--test", help="Once completed, destroy everything.", action="store_true")
 
@@ -620,6 +624,8 @@ if __name__ == '__main__':
                 if(project.networks.exists(name=conf.network.name)):
                     if(conf.network.action != 'skip' and conf.network.action == 'create'):
                         raise Exception(f"Network '{conf.network.name}' already exists.")
+                    elif(conf.network.action == 'skip'):
+                        network = project.networks.get(name=conf.network.name)
                     elif(conf.network.action == 'update'):
                         if(args.verbose):
                             print(f"[DEBUG] Network '{conf.network.name}' already existed.")
@@ -660,19 +666,16 @@ if __name__ == '__main__':
         if(conf.launch and conf.launch.isVM):
             waitForBoot(instance=instance)
     
-    # BEGIN Temporary measure until ansible creates an incus plugin.
-    incusPluginPath = os.path.join(os.getcwd(), "plugins", "connection")
-    # END
-
-    r = ansible_runner.run(debug=True,private_data_dir=challengePath, playbook=CHALLENGE_FILE_NAME, envvars={"ANSIBLE_CONNECTION_PLUGINS":incusPluginPath})
+    r = ansible_runner.run(debug=True, private_data_dir=challengePath, playbook=CHALLENGE_FILE_NAME)
 
     if(r.rc != 0):
         shutil.rmtree(os.path.join(challengePath, "artifacts"))
 
-        for conf in config:
-            project = pyincus.remotes.get(name=conf.remote).projects.get(name=conf.project)
-            instance = project.instances.get(name=conf.name)
-            destroy(project=project, args=args, instance=instance)
+        if(not args.keepInstancesOnFailure):
+            for conf in config:
+                project = pyincus.remotes.get(name=conf.remote).projects.get(name=conf.project)
+                instance = project.instances.get(name=conf.name)
+                destroy(project=project, args=args, instance=instance)
 
         sys.exit(1)
 
