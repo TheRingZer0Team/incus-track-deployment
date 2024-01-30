@@ -316,7 +316,7 @@ def setStaticIP(project: pyincus.models.projects.Project, args, *, instance: "py
     if(args.verbose):
         print(f"[DEBUG] Instance has now static ips: {instance.name} with {devices}.")
 
-def waitForIPAddresses(instance: "pyincus.models.instances.Instance | str"):
+def waitForIPAddresses(instance: "pyincus.models.instances.Instance | str", staticIPv4: str=None, staticIPv6: str=None):
     if(isinstance(instance, str)):
         instance = project.instances.get(name=instance)
 
@@ -325,8 +325,8 @@ def waitForIPAddresses(instance: "pyincus.models.instances.Instance | str"):
 
     network = project.networks.get(name=instance.expandedDevices["eth0"]["network"])
 
-    ipv4Enabled = "ipv4.address" in network.config and not pyincus.utils.isNone(network.config["ipv4.address"])
-    ipv6Enabled = "ipv6.address" in network.config and not pyincus.utils.isNone(network.config["ipv6.address"])
+    ipv4Enabled = ("ipv4.address" in network.config and not pyincus.utils.isNone(network.config["ipv4.address"]) or (staticIPv4 and not pyincus.utils.isNone(staticIPv4)))
+    ipv6Enabled = ("ipv6.address" in network.config and not pyincus.utils.isNone(network.config["ipv6.address"]) or (staticIPv6 and not pyincus.utils.isNone(staticIPv6)))
 
     subnet4 = ip_network(network.config["ipv4.address"], strict=False) if ipv4Enabled else None
     subnet6 = ip_network(network.config["ipv6.address"], strict=False) if ipv6Enabled else None
@@ -661,7 +661,7 @@ if __name__ == '__main__':
     for conf in config:
         project = pyincus.remotes.get(name=conf.remote).projects.get(name=conf.project)
         instance = project.instances.get(name=conf.name)
-        waitForIPAddresses(instance=instance)
+        waitForIPAddresses(instance=instance, staticIPv4=conf.network.ipv4, staticIPv6=conf.network.ipv6)
 
         if(conf.launch and conf.launch.isVM):
             waitForBoot(instance=instance)
@@ -696,7 +696,7 @@ if __name__ == '__main__':
 
 
             if(conf.network.forwards):
-                waitForIPAddresses(instance=instance)
+                waitForIPAddresses(instance=instance, staticIPv4=conf.network.ipv4, staticIPv6=conf.network.ipv6)
                 setForwardsPorts(project=project, args=args, instance=instance, network=conf.network.name, listenAddress=conf.network.listenAddress, forwards=conf.network.forwards)
         else:
             project.instances.get(name=conf.name).restart()
