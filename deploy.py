@@ -325,8 +325,8 @@ def waitForIPAddresses(instance: "pyincus.models.instances.Instance | str", stat
 
     network = project.networks.get(name=instance.expandedDevices["eth0"]["network"])
 
-    ipv4Enabled = ("ipv4.address" in network.config and not pyincus.utils.isNone(network.config["ipv4.address"]) or (staticIPv4 and not pyincus.utils.isFalse(staticIPv4)))
-    ipv6Enabled = ("ipv6.address" in network.config and not pyincus.utils.isNone(network.config["ipv6.address"]) or (staticIPv6 and not pyincus.utils.isFalse(staticIPv6)))
+    ipv4Enabled = not pyincus.utils.isFalse(staticIPv4) and ("ipv4.address" in network.config and not pyincus.utils.isNone(network.config["ipv4.address"]))
+    ipv6Enabled = not pyincus.utils.isFalse(staticIPv6) and ("ipv6.address" in network.config and not pyincus.utils.isNone(network.config["ipv6.address"]))
 
     subnet4 = ip_network(network.config["ipv4.address"], strict=False) if ipv4Enabled else None
     subnet6 = ip_network(network.config["ipv6.address"], strict=False) if ipv6Enabled else None
