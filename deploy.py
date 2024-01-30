@@ -325,8 +325,8 @@ def waitForIPAddresses(instance: "pyincus.models.instances.Instance | str", stat
 
     network = project.networks.get(name=instance.expandedDevices["eth0"]["network"])
 
-    ipv4Enabled = ("ipv4.address" in network.config and not pyincus.utils.isNone(network.config["ipv4.address"]) or (staticIPv4 and not pyincus.utils.isNone(staticIPv4)))
-    ipv6Enabled = ("ipv6.address" in network.config and not pyincus.utils.isNone(network.config["ipv6.address"]) or (staticIPv6 and not pyincus.utils.isNone(staticIPv6)))
+    ipv4Enabled = ("ipv4.address" in network.config and not pyincus.utils.isNone(network.config["ipv4.address"]) or (staticIPv4 and not pyincus.utils.isFalse(staticIPv4)))
+    ipv6Enabled = ("ipv6.address" in network.config and not pyincus.utils.isNone(network.config["ipv6.address"]) or (staticIPv6 and not pyincus.utils.isFalse(staticIPv6)))
 
     subnet4 = ip_network(network.config["ipv4.address"], strict=False) if ipv4Enabled else None
     subnet6 = ip_network(network.config["ipv6.address"], strict=False) if ipv6Enabled else None
@@ -430,13 +430,13 @@ class Config(Model):
                     except:
                         raise Exception("listen_address must be a valid IPv4/IPv6 address.")
 
-            if(ipv4): 
+            if(ipv4 and not pyincus.utils.isFalse(ipv4)):
                 try:
                     IPv4Address(ipv4)
                 except:
                     raise Exception("ipv4 must be a valid IPv4 address.")
 
-            if(ipv6): 
+            if(ipv6 and not pyincus.utils.isFalse(ipv6)):
                 try:
                     IPv6Address(ipv6)
                 except:
@@ -693,7 +693,6 @@ if __name__ == '__main__':
                 
             if(conf.network.acls):
                 setNetworkACLs(project=project, args=args, instance=instance, acls=conf.network.acls)
-
 
             if(conf.network.forwards):
                 waitForIPAddresses(instance=instance, staticIPv4=conf.network.ipv4, staticIPv6=conf.network.ipv6)
