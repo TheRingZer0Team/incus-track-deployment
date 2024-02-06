@@ -2,8 +2,8 @@ all:
   hosts:
     test-challenge-deployment:
   vars:
-    ansible_connection: lxd
+    ansible_connection: incus
     ansible_user: root
-    ansible_lxd_remote: local
-    ansible_lxd_project: default
-    ansible_lxd_host: test-challenge-deployment
+    ansible_incus_remote: local
+    ansible_incus_project: default
+    ansible_incus_host: test-challenge-deployment
