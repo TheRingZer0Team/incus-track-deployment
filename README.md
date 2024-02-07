@@ -25,11 +25,11 @@ all:
   hosts:
     test-challenge-deployment-on-default:
   vars:
-    ansible_connection: lxd
+    ansible_connection: community.general.incus
     ansible_user: root
-    ansible_lxd_remote: local
-    ansible_lxd_project: default
-    ansible_lxd_host: test-challenge-deployment-on-default
+    ansible_incus_remote: local
+    ansible_incus_project: default
+    ansible_incus_host: test-challenge-deployment-on-default
 ```
 
 Or for multiple instances:
@@ -37,22 +37,22 @@ Or for multiple instances:
 ```yaml
 all:
   vars:
-    ansible_connection: lxd
+    ansible_connection: community.general.incus
     ansible_user: root
-    ansible_lxd_remote: local
-    ansible_lxd_project: default
+    ansible_incus_remote: local
+    ansible_incus_project: default
 
 server1:
   hosts:
     test-server-1:
   vars:
-    ansible_lxd_host: test-server-1
+    ansible_incus_host: test-server-1
 
 server2:
   hosts:
     test-server-2:
   vars:
-    ansible_lxd_host: test-server-2
+    ansible_incus_host: test-server-2
 ```
 
 ### challenge.yml
