@@ -225,35 +225,62 @@ def removeForwardPort(project: pyincus.models.projects.Project, args, *, instanc
                     if(args.verbose):
                         print(f"[DEBUG] Forward port was removed: {port['listen_port']}")
 
-def setNetworkACLs(project: pyincus.models.projects.Project, args, *, acls: list, instance: "pyincus.models.instances.Instance | str"):
+def setNetworkACLs(project: pyincus.models.projects.Project, args, *, acls: list, instance: "pyincus.models.instances.Instance | str"=None, network: "pyincus.models.networks.Network | str"=None):
     if(isinstance(instance, str)):
         instance = project.instances.get(name=instance)
 
-    devices = instance.devices
+    if(instance):
+        devices = instance.devices
 
-    if(not "eth0" in devices):
-        devices["eth0"] = instance.expandedDevices["eth0"]
-    
-    if(not "security.acls" in devices["eth0"]):
-        securityACL = []
-    else:
-        securityACL = devices["eth0"]["security.acls"].split(',')
-
-    for acl in acls:
-        if(not project.acls.exists(name=acl.name)):
-            acl = project.acls.create(name=acl.name, description=acl.description, egress=acl.egress, ingress=acl.ingress)
+        if(not "eth0" in devices):
+            devices["eth0"] = instance.expandedDevices["eth0"]
+        
+        if(not "security.acls" in devices["eth0"]):
+            securityACL = []
         else:
-            acl = project.acls.get(name=acl.name)
+            securityACL = devices["eth0"]["security.acls"].split(',')
 
-        securityACL.append(acl.name)
-
-    devices["eth0"]["security.acls"] = ','.join(securityACL)
-
-    instance.devices = devices
-
-    if(args.verbose):
         for acl in acls:
-            print(f"[DEBUG] ACL ({acl.name}) attached to Instance ({instance.name}).")
+            if(not project.acls.exists(name=acl.name)):
+                acl = project.acls.create(name=acl.name, description=acl.description, egress=acl.egress, ingress=acl.ingress)
+            else:
+                acl = project.acls.get(name=acl.name)
+
+            securityACL.append(acl.name)
+
+        devices["eth0"]["security.acls"] = ','.join(securityACL)
+
+        instance.devices = devices
+
+        if(args.verbose):
+            for acl in acls:
+                print(f"[DEBUG] ACL ({acl.name}) attached to Instance ({instance.name}).")
+    else:
+        if(isinstance(network, str)):
+            network = project.networks.get(name=network)
+
+        config = network.config
+        
+        if(not "security.acls" in config):
+            securityACL = []
+        else:
+            securityACL = config["security.acls"].split(',')
+
+        for acl in acls:
+            if(not project.acls.exists(name=acl.name)):
+                acl = project.acls.create(name=acl.name, description=acl.description, egress=acl.egress, ingress=acl.ingress)
+            else:
+                acl = project.acls.get(name=acl.name)
+
+            securityACL.append(acl.name)
+
+        config["security.acls"] = ','.join(securityACL)
+
+        network.config = config
+
+        if(args.verbose):
+            for acl in acls:
+                print(f"[DEBUG] ACL ({acl.name}) attached to Network ({network.name}).")
 
 def setForwardsPorts(project: pyincus.models.projects.Project, args, *, instance: "pyincus.models.instances.Instance | str", network: str, listenAddress: str, forwards: list):
     if(isinstance(instance, str)):
@@ -692,7 +719,10 @@ if __name__ == '__main__':
             instance.restart()
                 
             if(conf.network.acls):
-                setNetworkACLs(project=project, args=args, instance=instance, acls=conf.network.acls)
+                if(conf.network.type == 'ovn'):
+                    setNetworkACLs(project=project, args=args, instance=instance, acls=conf.network.acls)
+                else:
+                    setNetworkACLs(project=project, args=args, network=conf.network.name, acls=conf.network.acls)
 
             if(conf.network.forwards):
                 waitForIPAddresses(instance=instance, staticIPv4=conf.network.ipv4, staticIPv6=conf.network.ipv6)
