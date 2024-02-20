@@ -52,6 +52,7 @@ def printHelp():
           network:
             name: testnetwork (required if forwards is present)
             description: testnetwork (optional)
+            nic: eth0 (optional)
             _type: ovn (required if creating a new network)
             action: update (optional, values are 'create' (throws if already exists), 'skip' (skip the creation if already exists), 'update' (create or update if already exists))
             config:
@@ -100,13 +101,25 @@ def printHelp():
         """)
     )
 
-def destroy(project: pyincus.models.projects.Project, args, *, instance: "pyincus.models.instances.Instance | str"):
+def findNetworkInterfaceCard(instance: "pyincus.models.instances.Instance | str"):
+    if(isinstance(instance, str)):
+        instance = project.instances.get(name=instance)
+
+    nic = None
+
+    for k, v in instance.expandedDevices.items():
+        if(v["type"] == "nic"):
+            nic = k
+
+    return nic
+
+def destroy(project: pyincus.models.projects.Project, args, *, instance: "pyincus.models.instances.Instance | str", nic: str='eth0'):
     if(args.verbose):
         print(f"[DEBUG] Attempt to destroy instance: {instance.name}")
 
     aclsToRemove = associatedACLs(project=project, args=args, instance=instance)
 
-    removeForwardPort(project=project, args=args, instance=instance)
+    removeForwardPort(project=project, args=args, instance=instance, nic=nic)
 
     try:
         instance.pause()
@@ -141,11 +154,11 @@ def destroy(project: pyincus.models.projects.Project, args, *, instance: "pyincu
                 print(f"[DEBUG] ACL was deleted: {acl.name}")
 
 
-def deploy(project: pyincus.models.projects.Project, args, *, name: str, nameSource: str, remoteSource: str=None, projectSource: str=None, config: dict=None, network: pyincus.models.networks.Network=None, isVM: bool=False, isClone: bool=False) -> pyincus.models.instances.Instance:
+def deploy(project: pyincus.models.projects.Project, args, *, name: str, nameSource: str, remoteSource: str=None, projectSource: str=None, config: dict=None, network: pyincus.models.networks.Network=None, isVM: bool=False, isClone: bool=False, nic: str='eth0') -> pyincus.models.instances.Instance:
     if(project.instances.exists(name=name)):
         if(args.force):
             instance = project.instances.get(name=name)
-            destroy(project=project, args=args, instance=instance)
+            destroy(project=project, args=args, instance=instance, nic=nic)
         else:
             print(f"Instance already exists. Use --force if you want to redeploy.")
             sys.exit(1)
@@ -154,8 +167,7 @@ def deploy(project: pyincus.models.projects.Project, args, *, name: str, nameSou
         if(args.verbose):
             print(f"[DEBUG] Copying {'virtual machine' if isVM else 'instance'} from {f'{remoteSource}:'if remoteSource else ''}{nameSource} to {name}")
         
-        # TODO: make it more dynamic as the NIC could be named something else than eth0.
-        device={"eth0":{"name":"eth0","type":"nic","network":network.name}} if network else None
+        device={nic:{"name": nic,"type":"nic","network":network.name}} if network else None
         
         instance = project.instances.copy(source=nameSource, name=name, remoteSource=remoteSource, projectSource=projectSource, config=config, device=device, instanceOnly=True, vm=isVM)
         
@@ -190,7 +202,7 @@ def associatedACLs(project: pyincus.models.projects.Project, args, *, instance: 
 
     return toRemove
 
-def removeForwardPort(project: pyincus.models.projects.Project, args, *, instance: "pyincus.models.instances.Instance | str"):
+def removeForwardPort(project: pyincus.models.projects.Project, args, *, instance: "pyincus.models.instances.Instance | str", nic: str='eth0'):
     if(isinstance(instance, str)):
         instance = project.instances.get(name=instance)
 
@@ -199,15 +211,16 @@ def removeForwardPort(project: pyincus.models.projects.Project, args, *, instanc
 
     if(instance.status.lower() != "running"):
         devices = instance.devices
-        if("eth0" in devices):
-            if("ipv4.address" in devices["eth0"]):
-                targetAddress4 = devices["eth0"]["ipv4.address"]
+        if(nic in devices):
+            if("ipv4.address" in devices[nic]):
+                targetAddress4 = devices[nic]["ipv4.address"]
 
-            if("ipv6.address" in devices["eth0"]):
-                targetAddress6 = devices["eth0"]["ipv6.address"]
+            if("ipv6.address" in devices[nic]):
+                targetAddress6 = devices[nic]["ipv6.address"]
 
     else:
-        for address in instance.state["network"]["eth0"]["addresses"]:
+        nic = findNetworkInterfaceCard(instance=instance) if not nic in instance.state["network"] else nic
+        for address in instance.state["network"][nic]["addresses"]:
             if(address["family"] == "inet" and address["scope"] == "global"):
                 targetAddress4 = address["address"]
                 break
@@ -216,7 +229,8 @@ def removeForwardPort(project: pyincus.models.projects.Project, args, *, instanc
                 break
 
     if(not targetAddress4 is None or not targetAddress6 is None):
-        network = project.networks.get(name=instance.expandedDevices["eth0"]["network"])
+        nic = findNetworkInterfaceCard(instance=instance) if not nic in instance.expandedDevices else nic
+        network = project.networks.get(name=instance.expandedDevices[nic]["network"])
 
         for forward in network.forwards.list():
             for port in forward.ports:
@@ -225,20 +239,20 @@ def removeForwardPort(project: pyincus.models.projects.Project, args, *, instanc
                     if(args.verbose):
                         print(f"[DEBUG] Forward port was removed: {port['listen_port']}")
 
-def setNetworkACLs(project: pyincus.models.projects.Project, args, *, acls: list, instance: "pyincus.models.instances.Instance | str"=None, network: "pyincus.models.networks.Network | str"=None):
+def setNetworkACLs(project: pyincus.models.projects.Project, args, *, acls: list, instance: "pyincus.models.instances.Instance | str"=None, network: "pyincus.models.networks.Network | str"=None, nic: str='eth0'):
     if(isinstance(instance, str)):
         instance = project.instances.get(name=instance)
 
     if(instance):
         devices = instance.devices
 
-        if(not "eth0" in devices):
-            devices["eth0"] = instance.expandedDevices["eth0"]
+        if(not nic in devices):
+            devices[nic] = instance.expandedDevices[nic]
         
-        if(not "security.acls" in devices["eth0"]):
+        if(not "security.acls" in devices[nic]):
             securityACL = []
         else:
-            securityACL = devices["eth0"]["security.acls"].split(',')
+            securityACL = devices[nic]["security.acls"].split(',')
 
         for acl in acls:
             if(not project.acls.exists(name=acl.name)):
@@ -248,7 +262,7 @@ def setNetworkACLs(project: pyincus.models.projects.Project, args, *, acls: list
 
             securityACL.append(acl.name)
 
-        devices["eth0"]["security.acls"] = ','.join(securityACL)
+        devices[nic]["security.acls"] = ','.join(securityACL)
 
         instance.devices = devices
 
@@ -282,13 +296,13 @@ def setNetworkACLs(project: pyincus.models.projects.Project, args, *, acls: list
             for acl in acls:
                 print(f"[DEBUG] ACL ({acl.name}) attached to Network ({network.name}).")
 
-def setForwardsPorts(project: pyincus.models.projects.Project, args, *, instance: "pyincus.models.instances.Instance | str", network: str, listenAddress: str, forwards: list):
+def setForwardsPorts(project: pyincus.models.projects.Project, args, *, instance: "pyincus.models.instances.Instance | str", network: str, listenAddress: str, forwards: list, nic: str='eth0'):
     if(isinstance(instance, str)):
         instance = project.instances.get(name=instance)
 
     targetAddress4 = None
     targetAddress6 = None
-    for address in instance.state["network"]["eth0"]["addresses"]:
+    for address in instance.state["network"][nic]["addresses"]:
         if(address["family"] == "inet" and address["scope"] == "global"):
             targetAddress4 = address["address"]
             break
@@ -310,32 +324,32 @@ def setForwardsPorts(project: pyincus.models.projects.Project, args, *, instance
         if(args.verbose):
             print(f"[DEBUG] Forward port was added: {f.source}")
 
-def setStaticIP(project: pyincus.models.projects.Project, args, *, instance: "pyincus.models.instances.Instance | str", ipv4: str=None, ipv6: str=None):
+def setStaticIP(project: pyincus.models.projects.Project, args, *, instance: "pyincus.models.instances.Instance | str", ipv4: str=None, ipv6: str=None, nic: str='eth0'):
     if(isinstance(instance, str)):
         instance = project.instances.get(name=instance)
 
     devices = instance.devices
 
-    if(not "eth0" in devices):
-        devices["eth0"] = instance.expandedDevices["eth0"]
+    if(not nic in devices):
+        devices[nic] = instance.expandedDevices[nic]
 
     if(ipv4):
-        devices["eth0"]["ipv4.address"] = ipv4
+        devices[nic]["ipv4.address"] = ipv4
     else:
-        for address in instance.state["network"]["eth0"]["addresses"]:
+        for address in instance.state["network"][nic]["addresses"]:
             if(address["family"] == "inet" and address["scope"] == "global"):
-                devices["eth0"]["ipv4.address"] = address["address"]
+                devices[nic]["ipv4.address"] = address["address"]
                 break
 
-    network = project.networks.get(name=instance.expandedDevices["eth0"]["network"])
+    network = project.networks.get(name=instance.expandedDevices[nic]["network"])
 
     if("ipv6.dhcp.stateful" in network.config and network.config["ipv6.dhcp.stateful"]):
         if(ipv6):
-            devices["eth0"]["ipv6.address"] = ipv6
+            devices[nic]["ipv6.address"] = ipv6
         else:
-            for address in instance.state["network"]["eth0"]["addresses"]:
+            for address in instance.state["network"][nic]["addresses"]:
                 if(address["family"] == "inet6" and address["scope"] == "global"):
-                    devices["eth0"]["ipv6.address"] = address["address"]
+                    devices[nic]["ipv6.address"] = address["address"]
                     break
 
     instance.devices = devices
@@ -343,14 +357,14 @@ def setStaticIP(project: pyincus.models.projects.Project, args, *, instance: "py
     if(args.verbose):
         print(f"[DEBUG] Instance has now static ips: {instance.name} with {devices}.")
 
-def waitForIPAddresses(instance: "pyincus.models.instances.Instance | str", staticIPv4: str=None, staticIPv6: str=None):
+def waitForIPAddresses(instance: "pyincus.models.instances.Instance | str", staticIPv4: str=None, staticIPv6: str=None, nic: str='eth0'):
     if(isinstance(instance, str)):
         instance = project.instances.get(name=instance)
 
     if(instance.status.lower() != "running"):
         raise Exception(f"Instance is not running: {instance.status}")
 
-    network = project.networks.get(name=instance.expandedDevices["eth0"]["network"])
+    network = project.networks.get(name=instance.expandedDevices[nic]["network"])
 
     ipv4Enabled = not pyincus.utils.isFalse(staticIPv4) and ("ipv4.address" in network.config and not pyincus.utils.isNone(network.config["ipv4.address"]))
     ipv6Enabled = not pyincus.utils.isFalse(staticIPv6) and ("ipv6.address" in network.config and not pyincus.utils.isNone(network.config["ipv6.address"]))
@@ -362,7 +376,7 @@ def waitForIPAddresses(instance: "pyincus.models.instances.Instance | str", stat
     ipv6 = None
     
     while(True):
-        for address in instance.state["network"]["eth0"]["addresses"]:
+        for address in instance.state["network"][nic]["addresses"]:
             if(ipv4Enabled and address["family"] == "inet" and address["scope"] == "global" and ip_address(address["address"]) in subnet4):
                 ipv4 = address["address"]
             
@@ -440,13 +454,14 @@ class Config(Model):
             self.config = config
 
     class Network(Model):
-        def __init__(self, name: str, _type: str=None, description: str=None, config: dict=None, *, action: str='skip', listen_address: str=None, ipv4: str=None, ipv6: str=None, static_ip: bool=False, forwards: list=[], acls: list=[]):
+        def __init__(self, name: str, _type: str=None, description: str=None, config: dict=None, *, action: str='skip', nic: str='eth0',listen_address: str=None, ipv4: str=None, ipv6: str=None, static_ip: bool=False, forwards: list=[], acls: list=[]):
             pyincus.models._models.Model().validateObjectFormat(name)
             self.name = name
             self.description = description
             self.action = action
             self.type = _type
             self.config = config
+            self.nic = nic
             
             if(listen_address): 
                 try:
@@ -516,12 +531,13 @@ if __name__ == '__main__':
     parser.add_argument("-f", "--force", help="Force deletion if instance exists", action="store_true")
     parser.add_argument("-k", "--keep-instances-on-failure", dest='keepInstancesOnFailure', help="Keep instance(s) if the script fails.", action="store_true")
     parser.add_argument("-a", "--apply", help="Apply configuration file without redeploying (can only be done if the instance exists).", action="store_true")
-    parser.add_argument("-t", "--test", help="Once completed, destroy everything.", action="store_true")
+    parser.add_argument("-t", "--test", help="Once completed, destroy everything (only the instance is destroyed at the moment).", action="store_true")
 
     purge = parser.add_argument_group('purge')
     purge.add_argument("--purge", help="Completely remove an instance and forward ports.", action="store_true")
     purge.add_argument("--remote", help="Specify remote.", type=str)
     purge.add_argument("--project", help="Specify project.", type=str)
+    purge.add_argument("--nic", help="Specify NIC (Network Interface Card). Default 'eth0'.", default="eth0", type=str)
 
     args = parser.parse_args()
 
@@ -550,7 +566,8 @@ if __name__ == '__main__':
 
         instance = project.instances.get(name=args.challengePath)
 
-        destroy(project=project, args=args, instance=instance)
+        destroy(project=project, args=args, instance=instance, nic=args.nic)
+
         sys.exit(1)
 
     if(os.path.exists(args.challengePath) and os.path.isdir(args.challengePath)):
@@ -628,7 +645,8 @@ if __name__ == '__main__':
             "projectSource": None,
             "nameSource": None,
             "isClone": False,
-            "isVM": False
+            "isVM": False,
+            "nic": "eth0"
         }
 
         if(conf.launch):
@@ -663,7 +681,8 @@ if __name__ == '__main__':
                         if(network.description != conf.network.description):
                             network.description = conf.network.description
 
-                        network.config = {**network.config, **conf.network.config}
+                        if(conf.network.config):
+                            network.config = {**network.config, **conf.network.config}
                 else:
                     if(not conf.network.type):
                         raise Exception("Type must be specified when creating a network.")
@@ -680,18 +699,37 @@ if __name__ == '__main__':
 
             kwargs["network"] = network
 
+            if(conf.network.nic):
+                kwargs["nic"] = conf.network.nic 
+
         if(not args.apply):
             instance = deploy(project=project, args=args, **kwargs)
         else:
             instance = project.instances.get(name=conf.name)
 
-    for conf in config:
-        project = pyincus.remotes.get(name=conf.remote).projects.get(name=conf.project)
-        instance = project.instances.get(name=conf.name)
-        waitForIPAddresses(instance=instance, staticIPv4=conf.network.ipv4, staticIPv6=conf.network.ipv6)
+    try:
+        for conf in config:
+            project = pyincus.remotes.get(name=conf.remote).projects.get(name=conf.project)
+            instance = project.instances.get(name=conf.name)
+            waitForIPAddresses(instance=instance, staticIPv4=conf.network.ipv4, staticIPv6=conf.network.ipv6, nic=conf.network.nic)
 
-        if(conf.launch and conf.launch.isVM):
-            waitForBoot(instance=instance)
+            if(conf.launch and conf.launch.isVM):
+                waitForBoot(instance=instance)
+    except:
+        import traceback
+        print(traceback.format_exc())
+        if(not args.keepInstancesOnFailure):
+            if(args.verbose):
+                print("Cleaning...")
+            for conf in config:
+                project = pyincus.remotes.get(name=conf.remote).projects.get(name=conf.project)
+                instance = project.instances.get(name=conf.name)
+                if(conf.network):
+                    destroy(project=project, args=args, instance=instance, nic=conf.network.nic)
+                else:
+                    destroy(project=project, args=args, instance=instance)
+
+        sys.exit(1)
     
     r = ansible_runner.run(debug=True, private_data_dir=challengePath, playbook=CHALLENGE_FILE_NAME)
 
@@ -699,10 +737,15 @@ if __name__ == '__main__':
         shutil.rmtree(os.path.join(challengePath, "artifacts"))
 
         if(not args.keepInstancesOnFailure):
+            if(args.verbose):
+                print("Cleaning...")
             for conf in config:
                 project = pyincus.remotes.get(name=conf.remote).projects.get(name=conf.project)
                 instance = project.instances.get(name=conf.name)
-                destroy(project=project, args=args, instance=instance)
+                if(conf.network):
+                    destroy(project=project, args=args, instance=instance, nic=conf.network.nic)
+                else:
+                    destroy(project=project, args=args, instance=instance)
 
         sys.exit(1)
 
@@ -714,19 +757,19 @@ if __name__ == '__main__':
             instance = project.instances.get(name=conf.name)
 
             if(conf.network.staticIp or conf.network.ipv4 or conf.network.ipv6):
-                setStaticIP(project=project, args=args, instance=instance, ipv4=conf.network.ipv4, ipv6=conf.network.ipv6)
+                setStaticIP(project=project, args=args, instance=instance, ipv4=conf.network.ipv4, ipv6=conf.network.ipv6, nic=conf.network.nic)
         
             instance.restart()
                 
             if(conf.network.acls):
                 if(conf.network.type == 'ovn'):
-                    setNetworkACLs(project=project, args=args, instance=instance, acls=conf.network.acls)
+                    setNetworkACLs(project=project, args=args, instance=instance, acls=conf.network.acls, nic=conf.network.nic)
                 else:
-                    setNetworkACLs(project=project, args=args, network=conf.network.name, acls=conf.network.acls)
+                    setNetworkACLs(project=project, args=args, network=conf.network.name, acls=conf.network.acls, nic=conf.network.nic)
 
             if(conf.network.forwards):
-                waitForIPAddresses(instance=instance, staticIPv4=conf.network.ipv4, staticIPv6=conf.network.ipv6)
-                setForwardsPorts(project=project, args=args, instance=instance, network=conf.network.name, listenAddress=conf.network.listenAddress, forwards=conf.network.forwards)
+                waitForIPAddresses(instance=instance, staticIPv4=conf.network.ipv4, staticIPv6=conf.network.ipv6, nic=conf.network.nic)
+                setForwardsPorts(project=project, args=args, instance=instance, network=conf.network.name, listenAddress=conf.network.listenAddress, forwards=conf.network.forwards, nic=conf.network.nic)
         else:
             project.instances.get(name=conf.name).restart()
 
@@ -736,4 +779,7 @@ if __name__ == '__main__':
         for conf in config:
             project = pyincus.remotes.get(name=conf.remote).projects.get(name=conf.project)
             instance = project.instances.get(name=conf.name)
-            destroy(project=project, args=args, instance=instance)
+            if(conf.network):
+                destroy(project=project, args=args, instance=instance, nic=conf.network.nic)
+            else:
+                destroy(project=project, args=args, instance=instance)
