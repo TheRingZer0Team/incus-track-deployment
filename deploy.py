@@ -21,7 +21,7 @@ CONFIGURATION_FILE_NAME = "config.yml"
 INVENTORY_FILE_NAME = "inventory"
 
 pyincus.incus.cwd = "/"
-pyincus.incus.check()
+#pyincus.incus.check()
 
 def printHelp():
     print("Review config file format.")
@@ -41,6 +41,7 @@ def printHelp():
             config: (optional)
               limits.cpu: 1
               limits.memory: 1GiB
+              agent.nic_config: true (if using a virtual machine)
             is_virtual_machine: false (default: false)
           copy: (if copying an instance. Can't be used with launch)
             remote: local (default: config.remote)
@@ -49,6 +50,7 @@ def printHelp():
             config: (optional)
               limits.cpu: 1
               limits.memory: 1GiB
+              agent.nic_config: true (if using a virtual machine)
           network:
             name: testnetwork (required if forwards is present)
             description: testnetwork (optional)
@@ -169,7 +171,7 @@ def deploy(project: pyincus.models.projects.Project, args, *, name: str, nameSou
         
         device={nic:{"name": nic,"type":"nic","network":network.name}} if network else None
         
-        instance = project.instances.copy(source=nameSource, name=name, remoteSource=remoteSource, projectSource=projectSource, config=config, device=device, instanceOnly=True, vm=isVM)
+        instance = project.instances.copy(source=nameSource, name=name, remoteSource=remoteSource, projectSource=projectSource, config=config, device=device, instanceOnly=True)
         
         instance.start()
 
@@ -396,8 +398,14 @@ def waitForBoot(instance: "pyincus.models.instances.Instance | str"):
     if(isinstance(instance, str)):
         instance = project.instances.get(name=instance)
 
+    if(instance.type == "virtual-machine"):
+        time.sleep(15)
+
     if(instance.status.lower() != "running"):
-        raise Exception(f"Instance is not running: {instance.status}")
+        time.sleep(5)
+        if(instance.status.lower() != "running"):
+            instance.start()
+            time.sleep(5)
 
     while(True):
         try:
@@ -662,6 +670,8 @@ if __name__ == '__main__':
             kwargs["config"] = conf.copy.config
             kwargs["isClone"] = True
 
+            kwargs["isVM"] = pyincus.remotes.get(name=conf.copy.remote).projects.get(name=conf.copy.project).instances.get(name=conf.copy.name).type == "virtual-machine"
+
         if(conf.network):
             network = None
 
@@ -713,7 +723,7 @@ if __name__ == '__main__':
             instance = project.instances.get(name=conf.name)
             waitForIPAddresses(instance=instance, staticIPv4=conf.network.ipv4, staticIPv6=conf.network.ipv6, nic=conf.network.nic)
 
-            if(conf.launch and conf.launch.isVM):
+            if("isVM" in kwargs and kwargs["isVM"]):
                 waitForBoot(instance=instance)
     except:
         import traceback
@@ -731,6 +741,15 @@ if __name__ == '__main__':
 
         sys.exit(1)
     
+    # ensure all vms are up after  restart before lauching ansible
+    for conf in config:
+        project = pyincus.remotes.get(name=conf.remote).projects.get(name=conf.project)
+        instance = project.instances.get(name=conf.name)
+        waitForIPAddresses(instance=instance, staticIPv4=conf.network.ipv4, staticIPv6=conf.network.ipv6, nic=conf.network.nic)
+
+        if("isVM" in kwargs and kwargs["isVM"]):
+            waitForBoot(instance=instance)
+
     r = ansible_runner.run(debug=True, private_data_dir=challengePath, playbook=CHALLENGE_FILE_NAME)
 
     if(r.rc != 0):
